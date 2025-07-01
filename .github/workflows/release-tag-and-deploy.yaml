@@ -1,4 +1,4 @@
-name: Auto Tag on PR Merge (feature/PR-tagging)
+name: Tag on PR Merge and labels (feature/PR-tagging)
 
 on:
   pull_request:
@@ -7,10 +7,28 @@ on:
       - feature/PR-tagging
 
 jobs:
-  tag_and_release:
-    if: github.event.pull_request.merged == true
+  check_labels:
     runs-on: ubuntu-latest
-
+    outputs:
+      valid_label: ${{ steps.set_output.outputs.valid_label }}
+    steps:
+      - name: Check PR Labels
+        id: set_output
+        run: |
+          labels="${{ toJson(github.event.pull_request.labels) }}"
+          echo "Labels: $labels"
+          if echo "$labels" | grep -iqE '"name":"version:(major|minor|patch)"'; then
+            echo "Valid version label found."
+            echo "::set-output name=valid_label::true"
+          else
+            echo "No valid version label found."
+            echo "::set-output name=valid_label::false"
+          fi
+          
+  tag_and_release:
+    needs: check_labels
+    if: needs.check_labels.outputs.valid_label == 'true'
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
@@ -78,4 +96,13 @@ jobs:
           name: ${{ steps.next_tag.outputs.tag }}
           body: "Automated release for feature/PR-tagging branch."
         env:
-          GITHUB_TOKEN: ${{ secrets.GIT_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  skip_notice:
+    needs: check_labels
+    if: needs.check_labels.outputs.valid_label == 'false'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Log Skipped Tagging
+        run: echo "🚫 Skipping release_candidate tagging because no version label (major/minor/patch) was found."
+
