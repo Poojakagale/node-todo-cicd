@@ -1,0 +1,29 @@
+name: Rollback to Release Candidate Tag
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to rollback to (e.g., release_candidate_1.2.3)'
+        required: true
+
+jobs:
+  rollback:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Tag
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.inputs.tag }}
+
+      - name: Set Git Identity
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+
+      - name: Deploy to previous version from Tag
+        run: |
+          echo "Rolling back to tag: ${{ github.event.inputs.tag }}       
+          echo "testing of Tag checkout completed. Proceed with your custom deployment logic here."
