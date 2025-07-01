@@ -7,6 +7,10 @@ on:
         description: 'Tag to rollback to (e.g., release_candidate_1.2.3)'
         required: true
 
+defaults:
+  run:
+    shell: bash
+
 jobs:
   rollback:
     if: github.ref == 'refs/heads/feature/PR-tagging'
