@@ -58,8 +58,8 @@ jobs:
 
       - name: Create Git Tag
         run: |
-          git config user.name "github-actions"
-          git config user.email "github-actions@github.com"
+          git config user.name "PoojaKagale"
+          git config user.email "poojankagale1996@gmail.com"
           git tag ${{ steps.next_tag.outputs.tag }}
           git push origin ${{ steps.next_tag.outputs.tag }}
 
@@ -70,4 +70,4 @@ jobs:
           name: ${{ steps.next_tag.outputs.tag }}
           body: "Automated release for feature/PR-tagging branch."
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GIT_TOKEN }}
