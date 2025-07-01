@@ -32,4 +32,4 @@ jobs:
           # aws s3 sync ./pub/media s3://your-media-bucket-name/media/
           
           
-          echo "Tag checkout completed. Proceed with your custom deployment logic here."
+          echo "testing of Tag checkout completed. Proceed with your custom deployment logic here."
