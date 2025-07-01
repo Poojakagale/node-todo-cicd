@@ -1,4 +1,4 @@
-name: Tag on PR Merge and labels (feature/PR-tagging)
+name: Tag on PR Merge with Version Labels (feature/PR-tagging)
 
 on:
   pull_request:
@@ -15,20 +15,21 @@ jobs:
       - name: Check PR Labels
         id: set_output
         run: |
-          labels="${{ toJson(github.event.pull_request.labels) }}"
-          echo "Labels: $labels"
-          if echo "$labels" | grep -iqE '"name":"version:(major|minor|patch)"'; then
-            echo "Valid version label found."
-            echo "::set-output name=valid_label::true"
-          else
-            echo "No valid version label found."
-            echo "::set-output name=valid_label::false"
-          fi
-          
+          echo "Checking for valid version labels..."
+          valid=false
+          for label in "${{ toJson(github.event.pull_request.labels.*.name) }}"; do
+            if [[ "$label" == *"version:major"* || "$label" == *"version:minor"* || "$label" == *"version:patch"* ]]; then
+              valid=true
+              break
+            fi
+          done
+          echo "valid_label=$valid" >> $GITHUB_OUTPUT
+
   tag_and_release:
     needs: check_labels
     if: needs.check_labels.outputs.valid_label == 'true'
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
@@ -39,21 +40,20 @@ jobs:
       - name: Determine Version Bump from PR Label
         id: pr_info
         run: |
-          echo "Extracting labels from PR..."
+          echo "Extracting PR labels..."
           labels="${{ toJson(github.event.pull_request.labels) }}"
-          echo "PR labels: $labels"
           bump="patch"
           if echo "$labels" | grep -iq 'version:major'; then bump="major"; fi
           if echo "$labels" | grep -iq 'version:minor'; then bump="minor"; fi
-          echo "Determined bump level: $bump"
-          echo "::set-output name=bump::$bump"
+          echo "Determined bump: $bump"
+          echo "bump=$bump" >> $GITHUB_OUTPUT
 
       - name: Get Latest Tag
         id: latest_tag
         run: |
           latest=$(git tag --sort=-v:refname | grep '^release_candidate_' | head -n 1)
           echo "Latest tag: $latest"
-          echo "::set-output name=tag::$latest"
+          echo "tag=$latest" >> $GITHUB_OUTPUT
 
       - name: Compute Next Tag
         id: next_tag
@@ -71,30 +71,22 @@ jobs:
             esac
             next="release_candidate_${major}.${minor}.${patch}"
           fi
-          echo "Next tag: $next"
-          echo "::set-output name=tag::$next"
+          echo "next=$next" >> $GITHUB_OUTPUT
 
       - name: Create Git Tag
         run: |
-          # git config user.name "Poojakagale"
-          # git config user.email "poojankagale1996@gmail.com"
-          # git remote set-url origin https://x-access-token:${{ secrets.GIT_TOKEN }}@github.com/Poojakagale/node-todo-cicd.git
-          # git tag ${{ steps.next_tag.outputs.tag }}
-          # git push origin ${{ steps.next_tag.outputs.tag }}
-
           git config user.name "github-actions"
           git config user.email "github-actions@github.com"
-          git remote set-url origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/Poojakagale/node-todo-cicd.git
-          git tag ${{ steps.next_tag.outputs.tag }}
-          git push origin ${{ steps.next_tag.outputs.tag }}
-
+          git remote set-url origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git
+          git tag ${{ steps.next_tag.outputs.next }}
+          git push origin ${{ steps.next_tag.outputs.next }}
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ steps.next_tag.outputs.tag }}
-          name: ${{ steps.next_tag.outputs.tag }}
-          body: "Automated release for feature/PR-tagging branch."
+          tag_name: ${{ steps.next_tag.outputs.next }}
+          name: ${{ steps.next_tag.outputs.next }}
+          body: "Automated release from feature/PR-tagging branch."
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -104,5 +96,4 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Log Skipped Tagging
-        run: echo "🚫 Skipping release_candidate tagging because no version label (major/minor/patch) was found."
-
+        run: echo "🚫 No valid version label found. Skipping release_candidate tagging."
