@@ -1,18 +1,14 @@
-name: Auto Tag & Deploy Magento to EC2
+name: Auto Tag on PR Merge (feature/PR-tagging)
 
 on:
   pull_request:
     types: [closed]
-    branches: [feature/PR-tagging]
-
-  push:
     branches:
       - feature/PR-tagging
-    tags:
-      - 'release_candidate_*'
 
 jobs:
-  tag_and_deploy:
+  tag_and_release:
+    if: github.event.pull_request.merged == true
     runs-on: ubuntu-latest
 
     steps:
@@ -22,28 +18,27 @@ jobs:
       - name: Fetch All Tags
         run: git fetch --tags
 
-      - name: Determine if PR Merge
-        if: github.event_name == 'pull_request' && github.event.pull_request.merged == true
+      - name: Determine Version Bump from PR Label
         id: pr_info
         run: |
-          echo "Merged PR labels:"
+          echo "Extracting labels from PR..."
           labels="${{ toJson(github.event.pull_request.labels) }}"
-          echo "$labels"
+          echo "PR labels: $labels"
           bump="patch"
           if echo "$labels" | grep -iq 'version:major'; then bump="major"; fi
           if echo "$labels" | grep -iq 'version:minor'; then bump="minor"; fi
+          echo "Determined bump level: $bump"
           echo "::set-output name=bump::$bump"
 
       - name: Get Latest Tag
         id: latest_tag
-        if: github.event_name == 'pull_request' && github.event.pull_request.merged == true
         run: |
-          tag=$(git tag --sort=-v:refname | grep '^release_candidate_' | head -n 1)
-          echo "::set-output name=tag::$tag"
+          latest=$(git tag --sort=-v:refname | grep '^release_candidate_' | head -n 1)
+          echo "Latest tag: $latest"
+          echo "::set-output name=tag::$latest"
 
       - name: Compute Next Tag
         id: next_tag
-        if: github.event_name == 'pull_request' && github.event.pull_request.merged == true
         run: |
           latest="${{ steps.latest_tag.outputs.tag }}"
           if [ -z "$latest" ]; then
@@ -58,25 +53,21 @@ jobs:
             esac
             next="release_candidate_${major}.${minor}.${patch}"
           fi
+          echo "Next tag: $next"
           echo "::set-output name=tag::$next"
 
       - name: Create Git Tag
-        if: github.event_name == 'pull_request' && github.event.pull_request.merged == true
         run: |
-          git config user.name "PoojaKagale"
-          git config user.email "poojankagale1996@gmail.com"
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
           git tag ${{ steps.next_tag.outputs.tag }}
           git push origin ${{ steps.next_tag.outputs.tag }}
 
       - name: Create GitHub Release
-        if: github.event_name == 'pull_request' && github.event.pull_request.merged == true
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.next_tag.outputs.tag }}
           name: ${{ steps.next_tag.outputs.tag }}
-          body: "Automated release for Magento app from main branch."
+          body: "Automated release for feature/PR-tagging branch."
         env:
-          GITHUB_TOKEN: ${{ secrets.GIT_TOKEN }}
-
- 
-
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
