@@ -58,11 +58,18 @@ jobs:
 
       - name: Create Git Tag
         run: |
-          git config user.name "Poojakagale"
-          git config user.email "poojankagale1996@gmail.com"
-          git remote set-url origin https://x-access-token:${{ secrets.GIT_TOKEN }}@github.com/Poojakagale/node-todo-cicd.git
+          # git config user.name "Poojakagale"
+          # git config user.email "poojankagale1996@gmail.com"
+          # git remote set-url origin https://x-access-token:${{ secrets.GIT_TOKEN }}@github.com/Poojakagale/node-todo-cicd.git
+          # git tag ${{ steps.next_tag.outputs.tag }}
+          # git push origin ${{ steps.next_tag.outputs.tag }}
+
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+          git remote set-url origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/Poojakagale/node-todo-cicd.git
           git tag ${{ steps.next_tag.outputs.tag }}
           git push origin ${{ steps.next_tag.outputs.tag }}
+
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
