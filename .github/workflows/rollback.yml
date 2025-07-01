@@ -9,7 +9,6 @@ on:
 
 jobs:
   rollback:
-    if: github.ref == 'refs/heads/feature/PR-tagging'
     runs-on: ubuntu-latest
 
     steps:
@@ -26,5 +25,8 @@ jobs:
 
       - name: Deploy to previous version from Tag
         run: |
-          echo "Rolling back to tag: ${{ github.event.inputs.tag }}       
-          echo "testing of Tag checkout completed. Proceed with your custom deployment logic here."
+          echo "Rolling back to tag: ${{ github.event.inputs.tag }}"
+          
+          # Example deployment logic (replace this with actual steps if needed)
+          echo "Tag checkout completed."
+          echo "Proceed with deployment using this tag."
