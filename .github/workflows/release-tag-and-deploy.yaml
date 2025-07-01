@@ -1,0 +1,99 @@
+name: Tag on PR Merge with Version Labels (feature/PR-tagging)
+
+on:
+  pull_request:
+    types: [closed]
+    branches:
+      - feature/PR-tagging
+
+jobs:
+  check_labels:
+    runs-on: ubuntu-latest
+    outputs:
+      valid_label: ${{ steps.set_output.outputs.valid_label }}
+    steps:
+      - name: Check PR Labels
+        id: set_output
+        run: |
+          echo "Checking for valid version labels..."
+          valid=false
+          for label in "${{ toJson(github.event.pull_request.labels.*.name) }}"; do
+            if [[ "$label" == *"version:major"* || "$label" == *"version:minor"* || "$label" == *"version:patch"* ]]; then
+              valid=true
+              break
+            fi
+          done
+          echo "valid_label=$valid" >> $GITHUB_OUTPUT
+
+  tag_and_release:
+    needs: check_labels
+    if: needs.check_labels.outputs.valid_label == 'true'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Fetch All Tags
+        run: git fetch --tags
+
+      - name: Determine Version Bump from PR Label
+        id: pr_info
+        run: |
+          echo "Extracting PR labels..."
+          labels="${{ toJson(github.event.pull_request.labels) }}"
+          bump="patch"
+          if echo "$labels" | grep -iq 'version:major'; then bump="major"; fi
+          if echo "$labels" | grep -iq 'version:minor'; then bump="minor"; fi
+          echo "Determined bump: $bump"
+          echo "bump=$bump" >> $GITHUB_OUTPUT
+
+      - name: Get Latest Tag
+        id: latest_tag
+        run: |
+          latest=$(git tag --sort=-v:refname | grep '^release_candidate_' | head -n 1)
+          echo "Latest tag: $latest"
+          echo "tag=$latest" >> $GITHUB_OUTPUT
+
+      - name: Compute Next Tag
+        id: next_tag
+        run: |
+          latest="${{ steps.latest_tag.outputs.tag }}"
+          if [ -z "$latest" ]; then
+            next="release_candidate_1.0.0"
+          else
+            version=${latest#"release_candidate_"}
+            IFS='.' read -r major minor patch <<< "$version"
+            case "${{ steps.pr_info.outputs.bump }}" in
+              major) major=$((major + 1)); minor=0; patch=0;;
+              minor) minor=$((minor + 1)); patch=0;;
+              patch) patch=$((patch + 1));;
+            esac
+            next="release_candidate_${major}.${minor}.${patch}"
+          fi
+          echo "next=$next" >> $GITHUB_OUTPUT
+
+      - name: Create Git Tag
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+          git remote set-url origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git
+          git tag ${{ steps.next_tag.outputs.next }}
+          git push origin ${{ steps.next_tag.outputs.next }}
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.next_tag.outputs.next }}
+          name: ${{ steps.next_tag.outputs.next }}
+          body: "Automated release from feature/PR-tagging branch."
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  skip_notice:
+    needs: check_labels
+    if: needs.check_labels.outputs.valid_label == 'false'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Log Skipped Tagging
+        run: echo "🚫 No valid version label found. Skipping release_candidate tagging."
